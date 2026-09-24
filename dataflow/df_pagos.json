@@ -1,0 +1,89 @@
+{
+	"name": "df_pagos",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "pagos_csv",
+						"type": "DatasetReference"
+					},
+					"name": "source1"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "pagos_sql",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "derivedColumn1"
+				},
+				{
+					"name": "split1"
+				},
+				{
+					"name": "derivedColumn2"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          pago_id as string,",
+				"          pedido_id as string,",
+				"          fecha_pago as string,",
+				"          metodo_pago as string,",
+				"          estado_pago as string,",
+				"          monto_pagado as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false) ~> source1",
+				"source1 derive(pago_id = upper(trim(pago_id)),",
+				"          pedido_id = upper(trim(pedido_id)),",
+				"          fecha_pago = trim(fecha_pago),",
+				"          metodo_pago = initCap(lower(trim(metodo_pago))),",
+				"          estado_pago = initCap(lower(trim(estado_pago))),",
+				"          monto_pagado = trim(monto_pagado)) ~> derivedColumn1",
+				"derivedColumn1 split(!isDecimal(monto_pagado) || isNull(monto_pagado) || trim(monto_pagado) == '' || isNull(pago_id) || trim(pago_id) == '' || isNull(pedido_id) || trim(pedido_id) == '' || isNull(fecha_pago) || trim(fecha_pago) == '' || isNull(metodo_pago) || trim(metodo_pago) == '' || isNull(estado_pago) || trim(estado_pago) == '',",
+				"     disjoint: false) ~> split1@(rechazados, validos)",
+				"split1@validos derive(fecha_pago = toDate(fecha_pago),",
+				"          monto_pagado = toDecimal(monto_pagado, 10, 2)) ~> derivedColumn2",
+				"derivedColumn2 sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
+				"          venta_id as string,",
+				"          fecha_venta as date,",
+				"          cliente_id as string,",
+				"          sucursal_id as string,",
+				"          canal as string,",
+				"          medio_pago as string,",
+				"          promocion_id as string,",
+				"          estado_venta as string,",
+				"          total_venta as decimal(12,2)",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          venta_id = pago_id,",
+				"          fecha_venta = fecha_pago,",
+				"          cliente_id = pedido_id,",
+				"          sucursal_id = metodo_pago,",
+				"          canal = estado_pago,",
+				"          total_venta = estado_pago",
+				"     )) ~> sink1"
+			]
+		}
+	}
+}
