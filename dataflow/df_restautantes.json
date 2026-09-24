@@ -1,0 +1,85 @@
+{
+	"name": "df_restautantes",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "restaurantes_csv",
+						"type": "DatasetReference"
+					},
+					"name": "source1"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "restaurantes",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "derivedColumn1"
+				},
+				{
+					"name": "split1"
+				},
+				{
+					"name": "derivedColumn2"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          restaurante_id as string,",
+				"          nombre_restaurante as string,",
+				"          tipo_cocina as string,",
+				"          calificacion_promedio as string,",
+				"          activo as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     ignoreNoFilesFound: false) ~> source1",
+				"source1 derive(restaurante_id = upper(trim(restaurante_id)),",
+				"          nombre_restaurante = trim(nombre_restaurante),",
+				"          tipo_cocina = initCap(lower(trim(tipo_cocina))),",
+				"          calificacion_promedio = trim(toString(calificacion_promedio)),",
+				"          activo = initCap(lower(trim(activo)))) ~> derivedColumn1",
+				"derivedColumn1 split(isNull(restaurante_id) || trim(restaurante_id) == '' || isNull(nombre_restaurante) || trim(nombre_restaurante) == '' || isNull(tipo_cocina) || trim(tipo_cocina) == '' || isNull(calificacion_promedio) || trim(calificacion_promedio) == '' || !isDecimal(calificacion_promedio) || toDecimal(calificacion_promedio) < 0 || toDecimal(calificacion_promedio) > 5 || isNull(activo) || trim(activo) == '' || (     lower(trim(activo)) != 'sí' &&     lower(trim(activo)) != 'si' &&     lower(trim(activo)) != 'no' ),",
+				"     disjoint: false) ~> split1@(rechazados, validos)",
+				"split1@validos derive(calificacion_promedio = toDecimal(calificacion_promedio,10,2)) ~> derivedColumn2",
+				"derivedColumn2 sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
+				"          venta_id as string,",
+				"          fecha_venta as date,",
+				"          cliente_id as string,",
+				"          sucursal_id as string,",
+				"          canal as string,",
+				"          medio_pago as string,",
+				"          promocion_id as string,",
+				"          estado_venta as string,",
+				"          total_venta as decimal(12,2)",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          sucursal_id = restaurante_id,",
+				"          cliente_id = nombre_restaurante,",
+				"          canal = activo,",
+				"          medio_pago = tipo_cocina,",
+				"          total_venta = calificacion_promedio",
+				"     )) ~> sink1"
+			]
+		}
+	}
+}
